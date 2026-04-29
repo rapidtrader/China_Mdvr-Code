@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import DeviceCard from './DeviceCard';
+import { apiUrl } from '../api';
 
 const Dashboard = () => {
   const [devices, setDevices] = useState([]);
@@ -25,7 +26,7 @@ const Dashboard = () => {
       setLoading(true);
       setError('');
 
-      const response = await fetch('http://localhost:3001/api/devices', {
+      const response = await fetch(apiUrl('/api/devices'), {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${authToken}`,

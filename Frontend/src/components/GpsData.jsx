@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { apiUrl } from '../api';
 
 const GpsData = () => {
   const [gpsData, setGpsData] = useState([]);
@@ -32,7 +33,7 @@ const GpsData = () => {
       setError('');
 
       // First get device data to get device IDs
-      const deviceResponse = await fetch('http://localhost:3001/api/devices', {
+      const deviceResponse = await fetch(apiUrl('/api/devices'), {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${authToken}`,
@@ -57,7 +58,7 @@ const GpsData = () => {
       }
 
       // Now fetch GPS data for these devices
-      const gpsResponse = await fetch('http://localhost:3001/api/gps/latest', {
+      const gpsResponse = await fetch(apiUrl('/api/gps/latest'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${authToken}`,

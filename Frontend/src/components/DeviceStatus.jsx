@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { apiUrl } from '../api';
 
 const DeviceStatus = () => {
   const [statusData, setStatusData] = useState([]);
@@ -33,7 +34,7 @@ const DeviceStatus = () => {
       setError('');
 
       // First get device data to get device IDs
-      const deviceResponse = await fetch('http://localhost:3001/api/devices', {
+      const deviceResponse = await fetch(apiUrl('/api/devices'), {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${authToken}`,
@@ -58,7 +59,7 @@ const DeviceStatus = () => {
       }
 
       // Now fetch device status for these devices
-      const statusResponse = await fetch('http://localhost:3001/api/device/states', {
+      const statusResponse = await fetch(apiUrl('/api/device/states'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${authToken}`,

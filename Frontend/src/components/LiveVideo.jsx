@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import Hls from 'hls.js';
 import flvjs from 'flv.js';
+import { apiUrl } from '../api';
 
 const getVideoListFromResponse = (videoResult) => {
   const possibleLists = [
@@ -310,7 +311,7 @@ const LiveVideo = () => {
       setWarning('');
 
       // Get device data to get device IDs
-      const deviceResponse = await fetch('http://localhost:3001/api/devices', {
+      const deviceResponse = await fetch(apiUrl('/api/devices'), {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${authToken}`,
@@ -352,7 +353,7 @@ const LiveVideo = () => {
       let selectedVideoList = [];
 
       for (const playFormat of playFormatCandidates) {
-        const videoResponse = await fetch('http://localhost:3001/api/media/previewVideo', {
+        const videoResponse = await fetch(apiUrl('/api/media/previewVideo'), {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${authToken}`,

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { apiUrl } from '../api';
 
 const LoginForm = () => {
   const { login } = useAuth();
@@ -29,7 +30,7 @@ const LoginForm = () => {
     setSuccess('');
 
     try {
-      const response = await fetch('http://localhost:3001/api/login', {
+      const response = await fetch(apiUrl('/api/login'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -8,6 +8,15 @@ export default defineConfig({
   optimizeDeps: {
     include: ['hls.js', 'flv.js']
   },
+  server: {
+    proxy: {
+      // Local dev: call same-origin `/api/*`, forward to Node backend
+      '/api': {
+        target: 'http://127.0.0.1:3001',
+        changeOrigin: true
+      }
+    }
+  },
   plugins: [
     tailwindcss(),
     react(),
