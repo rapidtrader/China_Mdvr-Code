@@ -11,7 +11,7 @@ const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://127.0.0.1:5174', 'http://localhost:3000', 'http://127.0.0.1:3000', 'https://ops.dynacleanindustries.com'],
+  origin: ['http://localhost:5173', 'http://127.0.0.1:5174', 'http://localhost:3001','http://localhost:3000', 'http://127.0.0.1:3000', 'https://ops.dynacleanindustries.com','http://ops.dynacleanindustries.com'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Token']
