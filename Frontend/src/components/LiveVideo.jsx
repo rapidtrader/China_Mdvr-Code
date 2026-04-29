@@ -67,10 +67,72 @@ const getPlayableCandidates = (video) => {
 const getPlayableUrl = (video) => getPlayableCandidates(video)[0] || '';
 const isWebRtcOnlyUrl = (url) => typeof url === 'string' && url.toLowerCase().includes('/index/api/webrtc');
 
+const startWebRtcPlayback = async ({ videoEl, webrtcUrl, onConnectionState }) => {
+  if (!videoEl) throw new Error('Missing video element');
+  if (!webrtcUrl) throw new Error('Missing webrtcUrl');
+
+  const pc = new RTCPeerConnection();
+  const abortController = new AbortController();
+
+  pc.addEventListener('connectionstatechange', () => {
+    onConnectionState?.(pc.connectionState);
+  });
+
+  // Receive-only (same intent as demo's recvOnly: true)
+  pc.addTransceiver('video', { direction: 'recvonly' });
+  pc.addTransceiver('audio', { direction: 'recvonly' });
+
+  pc.addEventListener('track', (event) => {
+    if (event.streams && event.streams.length > 0) {
+      videoEl.srcObject = event.streams[0];
+    } else {
+      videoEl.srcObject = new MediaStream([event.track]);
+    }
+  });
+
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+
+  const response = await fetch(webrtcUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'text/plain;charset=utf-8'
+    },
+    body: offer.sdp,
+    signal: abortController.signal
+  });
+
+  if (!response.ok) {
+    throw new Error(`WebRTC SDP exchange failed: HTTP ${response.status}`);
+  }
+
+  const data = await response.json();
+  if (data?.code !== 0 || !data?.sdp) {
+    throw new Error(data?.msg || data?.message || 'WebRTC SDP exchange failed');
+  }
+
+  await pc.setRemoteDescription({ type: 'answer', sdp: data.sdp });
+
+  return {
+    close: () => {
+      abortController.abort();
+      try {
+        pc.getSenders().forEach((s) => s.track?.stop?.());
+        pc.getReceivers().forEach((r) => r.track?.stop?.());
+      } catch (_e) {
+        // ignore
+      }
+      pc.close();
+      videoEl.srcObject = null;
+    }
+  };
+};
+
 const StreamPlayer = ({ video, uniqueKey }) => {
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
   const flvRef = useRef(null);
+  const webrtcRef = useRef(null);
   const playCandidates = useMemo(() => getPlayableCandidates(video), [video]);
   const [candidateIndex, setCandidateIndex] = useState(0);
   const playUrl = playCandidates[candidateIndex] || '';
@@ -103,12 +165,32 @@ const StreamPlayer = ({ video, uniqueKey }) => {
       flvRef.current.destroy();
       flvRef.current = null;
     }
+    if (webrtcRef.current) {
+      webrtcRef.current.close();
+      webrtcRef.current = null;
+    }
 
     const lowerUrl = playUrl.toLowerCase();
     const isHlsStream = lowerUrl.includes('.m3u8');
     const isFlvStream = lowerUrl.includes('.flv');
+    const isWebRtcStream = lowerUrl.includes('/index/api/webrtc');
 
-    if (isFlvStream && flvjs.isSupported()) {
+    if (isWebRtcStream) {
+      startWebRtcPlayback({
+        videoEl: player,
+        webrtcUrl: playUrl,
+        onConnectionState: (state) => {
+          console.log('WebRTC connection state:', state);
+        }
+      })
+        .then((ctrl) => {
+          webrtcRef.current = ctrl;
+        })
+        .catch((e) => {
+          console.error('WebRTC playback error:', { url: playUrl, error: e?.message || e });
+          tryNextCandidate();
+        });
+    } else if (isFlvStream && flvjs.isSupported()) {
       const flvPlayer = flvjs.createPlayer(
         {
           type: 'flv',
@@ -168,6 +250,10 @@ const StreamPlayer = ({ video, uniqueKey }) => {
       if (flvRef.current) {
         flvRef.current.destroy();
         flvRef.current = null;
+      }
+      if (webrtcRef.current) {
+        webrtcRef.current.close();
+        webrtcRef.current = null;
       }
     };
   }, [candidateIndex, playCandidates, playUrl, uniqueKey]);
@@ -260,7 +346,8 @@ const LiveVideo = () => {
       setLoading(true);
       setError('');
 
-      const playFormatCandidates = [2, 1, 0, 3];
+      // Vendor demo uses playFormat 1 (standard HTTP ws-mp4) and 2 (webrtc). Docs also mention 4 (hls).
+      const playFormatCandidates = [2, 1, 4];
       let selectedVideoResult = null;
       let selectedVideoList = [];
 

@@ -567,6 +567,7 @@ app.post('/api/media/previewVideo', async (req, res) => {
     }
 
     // Make request to external video preview API
+    // Important: don't throw on non-2xx so the frontend can retry other playFormat values.
     console.log('Making request to video preview API...');
     const response = await axios.post(
       'http://www.chinamdvr.com:9337/api/v1/media/previewVideo',
@@ -576,23 +577,44 @@ app.post('/api/media/previewVideo', async (req, res) => {
           'X-Token': token,
           'Content-Type': 'application/json'
         },
-        timeout: 10000
+        timeout: 10000,
+        validateStatus: () => true
       }
     );
     
     console.log('Video preview API response:', response.data);
 
-    res.json({
+    // Preserve upstream HTTP status + body for debugging.
+    if (response.status < 200 || response.status >= 300) {
+      return res.status(200).json({
+        success: false,
+        message: 'Upstream previewVideo failed',
+        upstreamStatus: response.status,
+        data: response.data
+      });
+    }
+
+    return res.json({
       success: true,
       data: response.data
     });
 
   } catch (error) {
-    console.error('Video preview error:', error.message);
-    res.status(500).json({
+    const upstreamStatus = error.response?.status;
+    const upstreamData = error.response?.data;
+    console.error('Video preview error:', {
+      message: error.message,
+      upstreamStatus,
+      upstreamData
+    });
+
+    // Return 200 with a structured error payload so the frontend can keep trying other formats.
+    return res.status(200).json({
       success: false,
       message: 'Failed to fetch video preview data',
-      error: error.message
+      upstreamStatus,
+      error: error.message,
+      data: upstreamData
     });
   }
 });
