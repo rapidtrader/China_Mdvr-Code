@@ -23,6 +23,19 @@ const LoginForm = () => {
     if (success) setSuccess('');
   };
 
+  const extractLoginMessage = (payload) => {
+    const candidates = [
+      payload?.message,
+      payload?.error?.message,
+      payload?.error?.msg,
+      payload?.data?.message,
+      payload?.data?.msg,
+      typeof payload?.error === 'string' ? payload.error : null
+    ].filter(Boolean);
+
+    return candidates[0] || 'Login failed';
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -38,7 +51,12 @@ const LoginForm = () => {
         body: JSON.stringify(formData)
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || data.success === false) {
+        setError(extractLoginMessage(data));
+        return;
+      }
 
       if (data.success) {
         setSuccess('Login successful!');
@@ -81,7 +99,7 @@ const LoginForm = () => {
           console.log('No token found in any expected location');
         }
       } else {
-        setError(data.message || 'Login failed');
+        setError(extractLoginMessage(data));
       }
     } catch (err) {
       setError('Network error. Please try again.');
@@ -111,6 +129,7 @@ const LoginForm = () => {
               <input
                 id="username"
                 name="username"
+                autoComplete="username"
                 type="text"
                 required
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
@@ -126,6 +145,7 @@ const LoginForm = () => {
               <input
                 id="password"
                 name="password"
+                autoComplete="current-password"
                 type="password"
                 required
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"

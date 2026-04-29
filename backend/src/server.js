@@ -60,9 +60,18 @@ app.post('/api/login', async (req, res) => {
         headers: {
           'Content-Type': 'application/json'
         },
-        timeout: 10000 // 10 second timeout
+        timeout: 10000, // 10 second timeout
+        validateStatus: () => true
       }
     );
+
+    if (response.status < 200 || response.status >= 300) {
+      return res.status(401).json({
+        success: false,
+        message: response.data?.message || 'Login failed',
+        error: response.data
+      });
+    }
 
     // Check if the API call was actually successful based on the response code
     if (response.data.code !== 200) {

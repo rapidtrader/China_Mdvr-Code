@@ -9,14 +9,23 @@ const rawBase =
     ? String(import.meta.env.VITE_API_BASE_URL).replace(/\/$/, '')
     : '';
 
+let insecureBaseWarned = false;
+
 const getEffectiveBase = () => {
   if (!rawBase) return '';
 
-  if (typeof window !== 'undefined' && window.location?.protocol === 'https:' && rawBase.startsWith('http://')) {
-    // eslint-disable-next-line no-console
-    console.warn(
-      '[api] VITE_API_BASE_URL is http:// while page is https:// — using same-origin /api instead (fix your env to https:// or remove VITE_API_BASE_URL).'
-    );
+  if (
+    typeof window !== 'undefined' &&
+    window.location?.protocol === 'https:' &&
+    rawBase.startsWith('http://')
+  ) {
+    if (!insecureBaseWarned) {
+      insecureBaseWarned = true;
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[api] VITE_API_BASE_URL is http:// while page is https:// — using same-origin /api. Remove VITE_API_BASE_URL or set it to https://...'
+      );
+    }
     return '';
   }
 
@@ -24,9 +33,6 @@ const getEffectiveBase = () => {
 };
 
 export const getApiBaseUrl = () => getEffectiveBase();
-
-/** Kept for debugging; reflects effective base after scheme checks */
-export const API_BASE_URL = getEffectiveBase();
 
 export const apiUrl = (path) => {
   const p = path.startsWith('/') ? path : `/${path}`;
