@@ -547,7 +547,8 @@ app.post('/api/device/states', async (req, res) => {
 app.post('/api/media/previewVideo', async (req, res) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
-    const { deviceId, channels = [6], dataType = 1, streamType = 1, playFormat = 2 } = req.body;
+    // Default streamType to main-stream (0) to match vendor demo (sub-stream can yield WebRTC "stream not found").
+    const { deviceId, channels = [6], dataType = 1, streamType = 0, playFormat = 2 } = req.body;
     
     console.log('Video preview API called with token:', token ? 'Token present' : 'No token');
     console.log('Device ID:', deviceId);
