@@ -15,30 +15,6 @@ const getVideoListFromResponse = (videoResult) => {
   return firstList || [];
 };
 
-const buildZlmHttpFallbackUrl = (rawUrl, targetType) => {
-  try {
-    const parsedUrl = new URL(rawUrl);
-    const app = parsedUrl.searchParams.get('app');
-    const stream = parsedUrl.searchParams.get('stream');
-
-    if (!app || !stream) {
-      return '';
-    }
-
-    if (targetType === 'flv') {
-      return `${parsedUrl.protocol}//${parsedUrl.host}/${app}/${stream}.live.flv`;
-    }
-
-    if (targetType === 'hls') {
-      return `${parsedUrl.protocol}//${parsedUrl.host}/${app}/${stream}/hls.m3u8`;
-    }
-
-    return '';
-  } catch (_error) {
-    return '';
-  }
-};
-
 const getPlayableCandidates = (video) => {
   const directCandidates = [
     video?.hlsUrl,
@@ -52,17 +28,17 @@ const getPlayableCandidates = (video) => {
     video?.videoUrl
   ].filter((value) => typeof value === 'string' && value.trim().length > 0);
 
-  const webrtcCandidate = directCandidates.find((item) =>
-    item.toLowerCase().includes('/index/api/webrtc')
+  // Don't guess arbitrary HLS/FLV URLs from WebRTC SDP endpoints (often 404 and noisy logs).
+  // Vendor demo resolves browser playback using specific playFormat responses.
+  const normalized = directCandidates.map((url) =>
+    url.startsWith('ws://') ? `http://${url.slice('ws://'.length)}` : url
   );
 
-  if (webrtcCandidate) {
-    const hlsFallback = buildZlmHttpFallbackUrl(webrtcCandidate, 'hls');
-    const flvFallback = buildZlmHttpFallbackUrl(webrtcCandidate, 'flv');
-    return [hlsFallback, flvFallback, ...directCandidates].filter(Boolean);
-  }
+  // Prefer stable order: explicit HLS/FLV URLs first when present.
+  const webrtcUrls = normalized.filter((u) => u.toLowerCase().includes('/index/api/webrtc'));
+  const mediaUrls = normalized.filter((u) => !u.toLowerCase().includes('/index/api/webrtc'));
 
-  return directCandidates;
+  return [...mediaUrls, ...webrtcUrls];
 };
 
 const getPlayableUrl = (video) => getPlayableCandidates(video)[0] || '';
@@ -363,7 +339,8 @@ const LiveVideo = () => {
             deviceId,
             channels: [channel],
             dataType: 1,
-            streamType: 1,
+            // IMPORTANT: Vendor demo defaults to main stream (0). Sub-stream (1) can fail with WebRTC SDP "stream not found".
+            streamType: 0,
             playFormat
           })
         });
