@@ -1,8 +1,3 @@
-# Environment variables
-.env
-.env.local
-.env.development
-.env.production
 
 # Dependencies
 node_modules/
@@ -15,6 +10,14 @@ dist/
 build/
 *.tgz
 *.tar.gz
+
+# Environment variables (exclude sensitive files)
+.env
+.env.local
+
+# Keep production env files (safe configurations)
+!.env.production
+!.env.developmentck
 
 # Runtime data
 pids

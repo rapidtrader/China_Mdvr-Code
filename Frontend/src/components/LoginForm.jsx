@@ -110,7 +110,7 @@ const LoginForm = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-white py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
@@ -189,21 +189,7 @@ const LoginForm = () => {
           </div>
         </form>
         
-        <div className="mt-6">
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300" />
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-gray-50 text-gray-500">Test Credentials</span>
-            </div>
-          </div>
-          <div className="mt-4 text-sm text-gray-600 text-center">
-            <p>Username: Apitest1</p>
-            <p>Password: 8d00a947b1f340078152691dfd8b803b</p>
-          </div>
-        </div>
-      </div>
+              </div>
     </div>
   );
 };

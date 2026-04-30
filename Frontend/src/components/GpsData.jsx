@@ -125,7 +125,7 @@ const GpsData = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-8">
+    <div className="min-h-screen bg-white p-8">
       {/* Header Section */}
       <div className="mb-8">
         <div className="flex justify-between items-center mb-2">

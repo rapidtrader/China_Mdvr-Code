@@ -8,10 +8,15 @@ const Sidebar = ({ activeTab, onTabChange }) => {
     { id: 'video', label: 'Live Video', icon: 'M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z' },
   ];
 
+  const handleLogout = () => {
+    localStorage.removeItem('authToken');
+    window.location.reload();
+  };
+
   return (
-    <div className="w-64 bg-gray-900 text-white h-screen fixed left-0 top-0">
+    <div className="w-64 bg-white text-gray-900 h-screen fixed left-0 top-0">
       <div className="p-4">
-        <h2 className="text-xl font-bold text-center mb-8">MDVR System</h2>
+        <h2 className="text-xl font-bold text-center mb-8 text-black">MDVR System</h2>
         
         <nav className="space-y-2">
           {menuItems.map((item) => (
@@ -21,7 +26,7 @@ const Sidebar = ({ activeTab, onTabChange }) => {
               className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors duration-200 ${
                 activeTab === item.id
                   ? 'bg-indigo-600 text-white'
-                  : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                  : 'text-black hover:bg-gray-100 hover:text-black'
               }`}
             >
               <svg
@@ -43,14 +48,24 @@ const Sidebar = ({ activeTab, onTabChange }) => {
         </nav>
       </div>
       
-      <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-800">
-        <div className="text-sm text-gray-400">
+      <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 space-y-4">
+        <div className="text-sm text-black">
           <p className="mb-1">System Status:</p>
           <div className="flex items-center">
             <div className="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></div>
             <span>Online</span>
           </div>
         </div>
+        
+        <button
+          onClick={handleLogout}
+          className="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded flex items-center justify-center"
+        >
+          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
+          Logout
+        </button>
       </div>
     </div>
   );

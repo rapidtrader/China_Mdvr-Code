@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
+  --text: #000000;
+  --text-h: #000000;
   --bg: #fff;
   --border: #e5e4e7;
   --code-bg: #f4f3ec;
@@ -54,18 +54,42 @@
 
 body {
   margin: 0;
+  padding: 0;
+  background: white !important;
+  color: #000000 !important;
+}
+
+html {
+  background: white !important;
+}
+
+/* Force all text to black */
+* {
+  color: black !important;
+}
+
+/* Keep white text for buttons and specific elements */
+button, .text-white {
+  color: white !important;
+}
+
+/* Keep green status indicator */
+.bg-green-400, .animate-pulse {
+  color: inherit !important;
 }
 
 #root {
-  width: 1126px;
+  width: 100vw;
   max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+  border: none;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
+  background: white !important;
 }
 
 h1,
