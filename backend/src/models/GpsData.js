@@ -85,6 +85,27 @@ class GpsData {
     const result = await collection.insertMany(gpsDataWithTimestamps);
     return result;
   }
+
+  /** Full history from gps_data, newest first. Caps bulk reads unless GPS_HISTORY_MAX_DOCS=0 (no limit). */
+  static async findAllSortedDescending(requestedLimit) {
+    const db = require('../mongodb').getDatabase();
+    const collection = db.collection(this.collection);
+    const rawMax = process.env.GPS_HISTORY_MAX_DOCS;
+    const envMax =
+      rawMax === '0' ? null : parseInt(rawMax || '200000', 10);
+    let limit = envMax;
+    if (requestedLimit != null && Number.isFinite(requestedLimit) && requestedLimit > 0) {
+      limit =
+        envMax == null
+          ? requestedLimit
+          : Math.min(requestedLimit, envMax);
+    }
+    let cursor = collection.find({}).sort({ gpsTime: -1 });
+    if (limit != null && limit > 0) {
+      cursor = cursor.limit(limit);
+    }
+    return cursor.toArray();
+  }
 }
 
 module.exports = GpsData;

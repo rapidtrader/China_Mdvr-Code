@@ -11,6 +11,7 @@ const GpsData = () => {
   const [viewMode, setViewMode] = useState('cards'); // 'cards', 'live', 'history'
   const [historyData, setHistoryData] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState('');
 
   useEffect(() => {
     const storedToken = localStorage.getItem('authToken');
@@ -127,57 +128,52 @@ const GpsData = () => {
   const fetchHistoryData = async (authToken) => {
     try {
       setHistoryLoading(true);
-      
-      // Get device IDs first
-      const deviceResponse = await fetch(apiUrl('/api/devices'), {
+      setHistoryError('');
+
+      const historyResponse = await fetch(apiUrl('/api/gps/mongo-history'), {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${authToken}`,
+          Authorization: `Bearer ${authToken}`,
           'Content-Type': 'application/json'
         }
       });
 
-      const deviceData = await deviceResponse.json();
-      
-      if (!deviceData.success || !deviceData.data?.data?.list) {
-        setError('Failed to fetch device data');
-        setHistoryLoading(false);
+      const rawText = await historyResponse.text();
+      let historyResult = null;
+      try {
+        historyResult = rawText ? JSON.parse(rawText) : {};
+      } catch {
+        setHistoryError(
+          historyResponse.status === 404
+            ? 'GPS history API missing on server (404). Restart or redeploy the backend so GET /api/gps/history/db is available.'
+            : `Bad response (${historyResponse.status}). Expected JSON from the API.`
+        );
         return;
       }
 
-      const deviceIds = deviceData.data.data.list.map(device => device.deviceId);
-      
-      if (deviceIds.length === 0) {
-        setError('No devices found');
-        setHistoryLoading(false);
+      if (!historyResponse.ok) {
+        setHistoryError(
+          historyResult?.message ||
+            `Request failed (${historyResponse.status}). Check that the backend is running the latest code.`
+        );
         return;
       }
-
-      // Fetch history data for all devices
-      const historyResponse = await fetch(apiUrl('/api/gps/history'), {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ 
-          deviceIds,
-          startTime: Math.floor((Date.now() - 7 * 24 * 60 * 60 * 1000) / 1000), // Last 7 days
-          endTime: Math.floor(Date.now() / 1000)
-        })
-      });
-
-      const historyResult = await historyResponse.json();
 
       if (historyResult.success) {
         const historyList = historyResult.data?.data?.list || [];
         setHistoryData(historyList);
-        console.log('History data fetched:', historyResult.data);
       } else {
-        setError(historyResult.message || 'Failed to fetch history data');
+        setHistoryError(historyResult.message || 'Failed to fetch history from database');
       }
     } catch (err) {
-      setError('Network error while fetching history. Please try again.');
+      const msg = String(err?.message || err);
+      const unreachable =
+        err?.name === 'TypeError' || msg.toLowerCase().includes('failed to fetch');
+      setHistoryError(
+        unreachable
+          ? 'Cannot reach the API. Start the backend on port 3001, or remove VITE_API_BASE_URL from Frontend/.env.development so Vite proxies /api to the server.'
+          : msg
+      );
       console.error('History fetch error:', err);
     } finally {
       setHistoryLoading(false);
@@ -190,7 +186,7 @@ const GpsData = () => {
 
   const handleHistoryClick = () => {
     setViewMode('history');
-    if (token && historyData.length === 0) {
+    if (token) {
       fetchHistoryData(token);
     }
   };
@@ -416,10 +412,27 @@ const GpsData = () => {
               <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 GPS History
               </h1>
-              <p className="text-gray-600 mt-2 text-sm sm:text-base lg:text-lg">Historical tracking data for the last 7 days</p>
+              <p className="text-gray-600 mt-2 text-sm sm:text-base lg:text-lg">
+                {historyLoading
+                  ? 'Loading from MongoDB collection gps_data…'
+                  : `All GPS records stored in MongoDB (${historyData.length} rows)`}
+              </p>
             </div>
           </div>
         </div>
+
+        {historyError && (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-800 text-sm">
+            {historyError}
+            <button
+              type="button"
+              onClick={() => token && fetchHistoryData(token)}
+              className="ml-3 font-semibold text-red-900 underline hover:no-underline"
+            >
+              Retry
+            </button>
+          </div>
+        )}
 
         {historyLoading ? (
           <div className="flex items-center justify-center h-64">
@@ -429,53 +442,51 @@ const GpsData = () => {
             </div>
           </div>
         ) : historyData.length > 0 ? (
-          <div className="space-y-4">
-            {historyData.map((record, index) => {
-              const gps = record.gps || {};
-              return (
-                <div key={index} className="bg-gradient-to-br from-white to-gray-50 border border-gray-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 p-6">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
-                    <div>
-                      <h3 className="text-lg font-bold text-gray-900">{record.deviceId}</h3>
-                      <p className="text-sm text-gray-600">
-                        {gps.time ? formatDate(gps.time) : 'Timestamp not available'}
-                      </p>
-                    </div>
-                    <div className="mt-2 sm:mt-0 flex gap-2">
-                      <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
-                        Speed: {gps.speed || 0} km/h
-                      </span>
-                      <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
-                        {gps.statusFlags?.acc ? 'ACC ON' : 'ACC OFF'}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="bg-gray-50 p-3 rounded-lg">
-                      <span className="text-sm text-gray-600 block">Location</span>
-                      <p className="font-mono text-sm text-gray-900">
-                        {(gps.latitude || 0).toFixed(6)}, {(gps.longitude || 0).toFixed(6)}
-                      </p>
-                    </div>
-                    <div className="bg-gray-50 p-3 rounded-lg">
-                      <span className="text-sm text-gray-600 block">Direction</span>
-                      <p className="font-semibold text-gray-900">{gps.direction || 0}°</p>
-                    </div>
-                    <div className="bg-gray-50 p-3 rounded-lg">
-                      <span className="text-sm text-gray-600 block">Altitude</span>
-                      <p className="font-semibold text-gray-900">{gps.altitude || 0}m</p>
-                    </div>
-                    <div className="bg-gray-50 p-3 rounded-lg">
-                      <span className="text-sm text-gray-600 block">Status</span>
-                      <p className="font-semibold text-gray-900">
-                        {gps.statusFlags?.moving ? 'Moving' : 'Stopped'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+          <div className="rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="max-h-[70vh] overflow-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-100 sticky top-0 z-10 shadow-sm">
+                  <tr className="text-left text-gray-700">
+                    <th className="px-3 py-3 font-semibold whitespace-nowrap">Device</th>
+                    <th className="px-3 py-3 font-semibold whitespace-nowrap">Time</th>
+                    <th className="px-3 py-3 font-semibold whitespace-nowrap">Lat, Long</th>
+                    <th className="px-3 py-3 font-semibold whitespace-nowrap">Speed</th>
+                    <th className="px-3 py-3 font-semibold whitespace-nowrap">Dir</th>
+                    <th className="px-3 py-3 font-semibold whitespace-nowrap">Alt</th>
+                    <th className="px-3 py-3 font-semibold whitespace-nowrap">ACC</th>
+                    <th className="px-3 py-3 font-semibold whitespace-nowrap">Moving</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 bg-white">
+                  {historyData.map((record, index) => {
+                    const gps = record.gps || {};
+                    const rowKey = record._id != null ? String(record._id) : `${record.deviceId}-${index}`;
+                    return (
+                      <tr key={rowKey} className="hover:bg-purple-50/40">
+                        <td className="px-3 py-2 font-medium text-gray-900 whitespace-nowrap">
+                          {record.deviceId}
+                        </td>
+                        <td className="px-3 py-2 text-gray-700 whitespace-nowrap">
+                          {gps.time ? formatDate(gps.time) : '—'}
+                        </td>
+                        <td className="px-3 py-2 font-mono text-gray-800 whitespace-nowrap">
+                          {(gps.latitude ?? 0).toFixed(6)}, {(gps.longitude ?? 0).toFixed(6)}
+                        </td>
+                        <td className="px-3 py-2 whitespace-nowrap">{gps.speed ?? 0}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{gps.direction ?? 0}°</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{gps.altitude ?? 0}m</td>
+                        <td className="px-3 py-2 whitespace-nowrap">
+                          {gps.statusFlags?.acc ? 'ON' : 'OFF'}
+                        </td>
+                        <td className="px-3 py-2 whitespace-nowrap">
+                          {gps.statusFlags?.moving ? 'Yes' : 'No'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         ) : (
           <div className="text-center py-12">
@@ -689,8 +700,8 @@ const GpsData = () => {
           </div>
           <div className="bg-gradient-to-r from-purple-600 to-purple-700 p-4">
             <div className="flex justify-between items-center text-white">
-              <span className="text-sm font-medium">Data Period</span>
-              <span className="text-xl font-bold">Last 7 Days</span>
+              <span className="text-sm font-medium">Source</span>
+              <span className="text-xl font-bold">MongoDB · gps_data</span>
             </div>
           </div>
         </div>

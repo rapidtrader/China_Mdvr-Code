@@ -127,6 +127,48 @@ const saveDeviceStatusData = async (username, statusData) => {
   }
 };
 
+const formatGpsDocumentsAsApiList = (gpsData) =>
+  gpsData.map((gps) => ({
+    _id: gps._id,
+    deviceId: gps.deviceId,
+    gps: {
+      latitude: gps.latitude,
+      longitude: gps.longitude,
+      altitude: gps.altitude,
+      speed: gps.speed,
+      direction: gps.direction,
+      time: gps.gpsTime,
+      accuracy: gps.accuracy,
+      satelliteCount: gps.satelliteCount,
+      isOnline: gps.isOnline,
+      address: gps.address,
+      state: gps.state,
+      alarmFlags: gps.alarmFlags,
+      statusFlags: gps.statusFlags,
+      additionalInfos: gps.additionalInfos,
+      lastOnlineTime: gps.lastOnlineTime,
+      dataType: gps.dataType,
+      mileage: gps.mileage,
+      signalStrength: gps.signalStrength,
+      gnssCount: gps.gnssCount
+    }
+  }));
+
+// All GPS history rows from MongoDB gps_data (newest first)
+const getAllGpsHistoryFromDb = async (limit) => {
+  const rows = await GpsData.findAllSortedDescending(limit);
+  const list = formatGpsDocumentsAsApiList(rows);
+  return {
+    code: 200,
+    message: 'success',
+    ts: Math.floor(Date.now() / 1000),
+    data: {
+      list,
+      total: list.length
+    }
+  };
+};
+
 // Get GPS data from MongoDB
 const getGpsData = async (username) => {
   try {
@@ -142,30 +184,7 @@ const getGpsData = async (username) => {
       message: 'success',
       ts: Date.now(),
       data: {
-        list: gpsData.map(gps => ({
-          deviceId: gps.deviceId,
-          gps: {
-            latitude: gps.latitude,
-            longitude: gps.longitude,
-            altitude: gps.altitude,
-            speed: gps.speed,
-            direction: gps.direction,
-            time: gps.gpsTime,
-            accuracy: gps.accuracy,
-            satelliteCount: gps.satelliteCount,
-            isOnline: gps.isOnline,
-            address: gps.address,
-            state: gps.state,
-            alarmFlags: gps.alarmFlags,
-            statusFlags: gps.statusFlags,
-            additionalInfos: gps.additionalInfos,
-            lastOnlineTime: gps.lastOnlineTime,
-            dataType: gps.dataType,
-            mileage: gps.mileage,
-            signalStrength: gps.signalStrength,
-            gnssCount: gps.gnssCount
-          }
-        })),
+        list: formatGpsDocumentsAsApiList(gpsData),
         total: gpsData.length
       }
     };
@@ -317,6 +336,7 @@ module.exports = {
   saveGpsData,
   saveDeviceStatusData,
   getGpsData,
+  getAllGpsHistoryFromDb,
   getDeviceData,
   getDeviceStatusData,
   saveUserLogin,

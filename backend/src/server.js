@@ -3,7 +3,7 @@ const cors = require('cors');
 const axios = require('axios');
 const { testConnection, initializeDatabase, closeDatabase } = require('./mongodb');
 const User = require('./models/User');
-const { saveDeviceData, saveGpsData, saveDeviceStatusData, getGpsData, getDeviceData, getDeviceStatusData, saveUserLogin, getUserByUsername, getAllUsers } = require('./services/dataService');
+const { saveDeviceData, saveGpsData, saveDeviceStatusData, getGpsData, getAllGpsHistoryFromDb, getDeviceData, getDeviceStatusData, saveUserLogin, getUserByUsername, getAllUsers } = require('./services/dataService');
 require('dotenv').config();
 
 const app = express();
@@ -17,6 +17,17 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Token']
 }));
 app.use(express.json());
+
+// Dev helper: confirm requests reach this Node process (set DEBUG_GPS_HISTORY=1)
+if (process.env.DEBUG_GPS_HISTORY === '1') {
+  app.use((req, _res, next) => {
+    const u = req.originalUrl || '';
+    if (u.includes('history') || u.includes('mongo-history')) {
+      console.log(`[history-debug] ${req.method} ${u} pid=${process.pid}`);
+    }
+    next();
+  });
+}
 
 // Initialize database on server start
 const initializeServer = async () => {
@@ -488,6 +499,50 @@ app.post('/api/gps/latest', async (req, res) => {
   }
 });
 
+// GPS history from MongoDB gps_data (all stored rows, newest first)
+const handleGpsHistoryFromDb = async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: 'Token is required'
+      });
+    }
+
+    const limitRaw =
+      req.query.limit !== undefined && req.query.limit !== ''
+        ? req.query.limit
+        : req.body?.limit;
+    const limit =
+      limitRaw !== undefined && limitRaw !== ''
+        ? parseInt(String(limitRaw), 10)
+        : undefined;
+
+    const payload = await getAllGpsHistoryFromDb(
+      Number.isFinite(limit) && limit > 0 ? limit : undefined
+    );
+
+    res.json({
+      success: true,
+      data: payload
+    });
+  } catch (error) {
+    console.error('GPS history DB error:', error.message);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to load GPS history from database',
+      error: error.message
+    });
+  }
+};
+
+app.get('/api/gps/history/db', handleGpsHistoryFromDb);
+app.post('/api/gps/history/db', handleGpsHistoryFromDb);
+// Alternate path (same handler) — use if a proxy blocks nested `/history/db`
+app.get('/api/gps/mongo-history', handleGpsHistoryFromDb);
+app.post('/api/gps/mongo-history', handleGpsHistoryFromDb);
+
 // Device status endpoint
 app.post('/api/device/states', async (req, res) => {
   try {
@@ -644,6 +699,9 @@ hlsUrl: video?.hlsUrl?.replace(
 initializeServer().then(() => {
   app.listen(PORT, () => {
     console.log(`Backend server running on port ${PORT}`);
+    console.log(
+      'GPS history from DB: GET|POST /api/gps/history/db or /api/gps/mongo-history'
+    );
   });
 }).catch(error => {
   console.error('Failed to start server:', error.message);
