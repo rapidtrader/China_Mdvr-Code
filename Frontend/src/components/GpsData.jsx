@@ -8,6 +8,9 @@ const GpsData = () => {
   const [error, setError] = useState('');
   const [token, setToken] = useState('');
   const [addresses, setAddresses] = useState({});
+  const [viewMode, setViewMode] = useState('cards'); // 'cards', 'live', 'history'
+  const [historyData, setHistoryData] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   useEffect(() => {
     const storedToken = localStorage.getItem('authToken');
@@ -121,6 +124,81 @@ const GpsData = () => {
     }
   };
 
+  const fetchHistoryData = async (authToken) => {
+    try {
+      setHistoryLoading(true);
+      
+      // Get device IDs first
+      const deviceResponse = await fetch(apiUrl('/api/devices'), {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const deviceData = await deviceResponse.json();
+      
+      if (!deviceData.success || !deviceData.data?.data?.list) {
+        setError('Failed to fetch device data');
+        setHistoryLoading(false);
+        return;
+      }
+
+      const deviceIds = deviceData.data.data.list.map(device => device.deviceId);
+      
+      if (deviceIds.length === 0) {
+        setError('No devices found');
+        setHistoryLoading(false);
+        return;
+      }
+
+      // Fetch history data for all devices
+      const historyResponse = await fetch(apiUrl('/api/gps/history'), {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          deviceIds,
+          startTime: Math.floor((Date.now() - 7 * 24 * 60 * 60 * 1000) / 1000), // Last 7 days
+          endTime: Math.floor(Date.now() / 1000)
+        })
+      });
+
+      const historyResult = await historyResponse.json();
+
+      if (historyResult.success) {
+        const historyList = historyResult.data?.data?.list || [];
+        setHistoryData(historyList);
+        console.log('History data fetched:', historyResult.data);
+      } else {
+        setError(historyResult.message || 'Failed to fetch history data');
+      }
+    } catch (err) {
+      setError('Network error while fetching history. Please try again.');
+      console.error('History fetch error:', err);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const handleLiveClick = () => {
+    setViewMode('live');
+  };
+
+  const handleHistoryClick = () => {
+    setViewMode('history');
+    if (token && historyData.length === 0) {
+      fetchHistoryData(token);
+    }
+  };
+
+  const handleBackToCards = () => {
+    setViewMode('cards');
+  };
+
   const formatDate = (timestamp) => {
     return new Date(timestamp * 1000).toLocaleString();
   };
@@ -154,6 +232,265 @@ const GpsData = () => {
     );
   }
 
+  // Render Live View
+  if (viewMode === 'live') {
+    return (
+      <div className="min-h-screen bg-white p-4 sm:p-6 lg:p-8">
+        {/* Header */}
+        <div className="mb-6 sm:mb-8">
+          <div className="flex items-center mb-4">
+            <button
+              onClick={handleBackToCards}
+              className="mr-4 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <div>
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                Live GPS Tracking
+              </h1>
+              <p className="text-gray-600 mt-2 text-sm sm:text-base lg:text-lg">Real-time location monitoring of all devices</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Live GPS Data Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+          {gpsData.map((device) => {
+            const gps = device.gps || {};
+            const alarms = gps.alarmFlags || {};
+            const status = gps.statusFlags || {};
+            
+            let mileage = 0;
+            let signalStrength = 0;
+            let gnssCount = 0;
+            
+            if (gps.additionalInfos && Array.isArray(gps.additionalInfos)) {
+              gps.additionalInfos.forEach(info => {
+                if (info.id === 1) mileage = info.mileage || 0;
+                if (info.id === 48) signalStrength = info.signalStrength || 0;
+                if (info.id === 49) gnssCount = info.gnssCount || 0;
+              });
+            }
+
+            return (
+              <div key={device.deviceId} className="bg-gradient-to-br from-white via-white to-blue-50 border border-blue-100 rounded-xl sm:rounded-2xl shadow-lg sm:shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 overflow-hidden">
+                {/* Card Header */}
+                <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-3 sm:p-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
+                    <div className="flex-1">
+                      <h3 className="text-lg sm:text-xl font-bold text-white truncate">{device.deviceId}</h3>
+                      <p className="text-blue-100 text-xs sm:text-sm">Live Tracking</p>
+                    </div>
+                    <div className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-bold ${
+                      status.acc 
+                        ? 'bg-green-500 text-white shadow-lg' 
+                        : 'bg-gray-500 text-white shadow-lg'
+                    }`}>
+                      {status.acc ? 'ACC ON' : 'ACC OFF'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card Body */}
+                <div className="p-4 sm:p-6">
+                  {/* Location Info */}
+                  <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-200">
+                    <div className="flex items-center mb-2">
+                      <svg className="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      </svg>
+                      <span className="font-semibold text-gray-700">Live Location</span>
+                    </div>
+                    <p className="text-sm sm:text-lg font-mono text-gray-900 break-all">
+                      {(gps.latitude || 0).toFixed(6)}, {(gps.longitude || 0).toFixed(6)}
+                    </p>
+                    {addresses[device.deviceId] && (
+                      <div className="mt-3 flex items-start">
+                        <svg className="w-4 h-4 text-gray-500 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        </svg>
+                        <p className="text-sm text-gray-600 leading-relaxed">{addresses[device.deviceId]}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Live Status Grid */}
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
+                    <div className="bg-gradient-to-br from-green-50 to-green-100 p-3 rounded-xl border border-green-200">
+                      <div className="flex items-center">
+                        <svg className="w-4 h-4 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        <span className="text-sm font-medium text-gray-700">Speed</span>
+                      </div>
+                      <p className="text-lg sm:text-xl font-bold text-gray-900">{gps.speed || 0} km/h</p>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-3 rounded-xl border border-blue-200">
+                      <div className="flex items-center">
+                        <svg className="w-4 h-4 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                        </svg>
+                        <span className="text-sm font-medium text-gray-700">Direction</span>
+                      </div>
+                      <p className="text-lg sm:text-xl font-bold text-gray-900">{gps.direction || 0}°</p>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-3 rounded-xl border border-purple-200">
+                      <div className="flex items-center">
+                        <svg className="w-4 h-4 text-purple-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span className="text-sm font-medium text-gray-700">Altitude</span>
+                      </div>
+                      <p className="text-lg sm:text-xl font-bold text-gray-900">{gps.altitude || 0}m</p>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 p-3 rounded-xl border border-yellow-200">
+                      <div className="flex items-center">
+                        <svg className="w-4 h-4 text-yellow-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                        <span className="text-sm font-medium text-gray-700">Signal</span>
+                      </div>
+                      <p className="text-lg sm:text-xl font-bold text-gray-900">{signalStrength}/31</p>
+                    </div>
+                  </div>
+
+                  {/* Live Indicators */}
+                  <div className="flex gap-3 mb-6">
+                    <div className={`flex-1 text-center p-3 rounded-xl font-semibold ${
+                      status.moving 
+                        ? 'bg-gradient-to-r from-yellow-400 to-orange-400 text-white shadow-lg'
+                        : 'bg-gray-200 text-gray-700'
+                    }`}>
+                      {status.moving ? 'Moving' : 'Stopped'}
+                    </div>
+                    <div className={`flex-1 text-center p-3 rounded-xl font-semibold flex items-center justify-center ${
+                      status.gpsPositioned 
+                        ? 'bg-gradient-to-r from-green-400 to-green-500 text-white shadow-lg'
+                        : 'bg-gradient-to-r from-red-400 to-red-500 text-white shadow-lg'
+                    }`}>
+                      <div className={`w-2 h-2 rounded-full mr-2 ${status.gpsPositioned ? 'bg-white' : 'bg-white'}`}></div>
+                      {status.gpsPositioned ? 'GPS Good' : 'GPS Poor'}
+                    </div>
+                  </div>
+
+                  {/* Footer */}
+                  <div className="mt-6 pt-4 border-t border-gray-200">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-500">Last Update</span>
+                      <span className="font-medium text-gray-900">
+                        {gps.time ? formatDate(gps.time) : 'Not available'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // Render History View
+  if (viewMode === 'history') {
+    return (
+      <div className="min-h-screen bg-white p-4 sm:p-6 lg:p-8">
+        {/* Header */}
+        <div className="mb-6 sm:mb-8">
+          <div className="flex items-center mb-4">
+            <button
+              onClick={handleBackToCards}
+              className="mr-4 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <div>
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                GPS History
+              </h1>
+              <p className="text-gray-600 mt-2 text-sm sm:text-base lg:text-lg">Historical tracking data for the last 7 days</p>
+            </div>
+          </div>
+        </div>
+
+        {historyLoading ? (
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading history data...</p>
+            </div>
+          </div>
+        ) : historyData.length > 0 ? (
+          <div className="space-y-4">
+            {historyData.map((record, index) => {
+              const gps = record.gps || {};
+              return (
+                <div key={index} className="bg-gradient-to-br from-white to-gray-50 border border-gray-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 p-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900">{record.deviceId}</h3>
+                      <p className="text-sm text-gray-600">
+                        {gps.time ? formatDate(gps.time) : 'Timestamp not available'}
+                      </p>
+                    </div>
+                    <div className="mt-2 sm:mt-0 flex gap-2">
+                      <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                        Speed: {gps.speed || 0} km/h
+                      </span>
+                      <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                        {gps.statusFlags?.acc ? 'ACC ON' : 'ACC OFF'}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <span className="text-sm text-gray-600 block">Location</span>
+                      <p className="font-mono text-sm text-gray-900">
+                        {(gps.latitude || 0).toFixed(6)}, {(gps.longitude || 0).toFixed(6)}
+                      </p>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <span className="text-sm text-gray-600 block">Direction</span>
+                      <p className="font-semibold text-gray-900">{gps.direction || 0}°</p>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <span className="text-sm text-gray-600 block">Altitude</span>
+                      <p className="font-semibold text-gray-900">{gps.altitude || 0}m</p>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <span className="text-sm text-gray-600 block">Status</span>
+                      <p className="font-semibold text-gray-900">
+                        {gps.statusFlags?.moving ? 'Moving' : 'Stopped'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p className="text-gray-600 text-lg">No history data available</p>
+            <p className="text-gray-500 text-sm mt-2">Historical data will appear here once available</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Default Card Selection View
   return (
     <div className="min-h-screen bg-white p-4 sm:p-6 lg:p-8">
       {/* Header Section */}
@@ -161,9 +498,9 @@ const GpsData = () => {
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-2 space-y-4 sm:space-y-0">
           <div>
             <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              GPS Tracking Dashboard
+              GPS Data Module
             </h1>
-            <p className="text-gray-600 mt-2 text-sm sm:text-base lg:text-lg">Real-time location monitoring and vehicle tracking</p>
+            <p className="text-gray-600 mt-2 text-sm sm:text-base lg:text-lg">Choose between Live tracking and Historical data</p>
           </div>
           <button
             onClick={handleRefresh}
@@ -292,190 +629,71 @@ const GpsData = () => {
         </div>
       </div>
 
-      {/* GPS Data Cards - Modern Design */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-        {gpsData.map((device) => {
-          const gps = device.gps || {};
-          const alarms = gps.alarmFlags || {};
-          const status = gps.statusFlags || {};
-          
-          // Extract additional info
-          let mileage = 0;
-          let signalStrength = 0;
-          let gnssCount = 0;
-          
-          if (gps.additionalInfos && Array.isArray(gps.additionalInfos)) {
-            gps.additionalInfos.forEach(info => {
-              if (info.id === 1) mileage = info.mileage || 0;
-              if (info.id === 48) signalStrength = info.signalStrength || 0;
-              if (info.id === 49) gnssCount = info.gnssCount || 0;
-            });
-          }
-
-          return (
-            <div key={device.deviceId} className="bg-gradient-to-br from-white via-white to-blue-50 border border-blue-100 rounded-xl sm:rounded-2xl shadow-lg sm:shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 overflow-hidden">
-              {/* Card Header */}
-              <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-3 sm:p-4">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
-                  <div className="flex-1">
-                    <h3 className="text-lg sm:text-xl font-bold text-white truncate">{device.deviceId}</h3>
-                    <p className="text-blue-100 text-xs sm:text-sm">GPS Tracking Device</p>
-                  </div>
-                  <div className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-bold ${
-                    status.acc 
-                      ? 'bg-green-500 text-white shadow-lg' 
-                      : 'bg-gray-500 text-white shadow-lg'
-                  }`}>
-                    {status.acc ? 'ACC ON' : 'ACC OFF'}
-                  </div>
-                </div>
+      {/* Selection Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6 sm:gap-8">
+        {/* Live Card */}
+        <div 
+          onClick={handleLiveClick}
+          className="bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-200 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 cursor-pointer overflow-hidden group"
+        >
+          <div className="p-8">
+            <div className="flex flex-col items-center text-center">
+              <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg mb-6 group-hover:scale-110 transition-transform duration-300">
+                <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
               </div>
-
-              {/* Card Body */}
-              <div className="p-4 sm:p-6">
-                {/* Location Info */}
-                <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-200">
-                  <div className="flex items-center mb-2">
-                    <svg className="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                    </svg>
-                    <span className="font-semibold text-gray-700">Coordinates</span>
-                  </div>
-                  <p className="text-sm sm:text-lg font-mono text-gray-900 break-all">
-                    {(gps.latitude || 0).toFixed(6)}, {(gps.longitude || 0).toFixed(6)}
-                  </p>
-                  {addresses[device.deviceId] && (
-                    <div className="mt-3 flex items-start">
-                      <svg className="w-4 h-4 text-gray-500 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                      </svg>
-                      <p className="text-sm text-gray-600 leading-relaxed">{addresses[device.deviceId]}</p>
-                    </div>
-                  )}
-                  {!addresses[device.deviceId] && gps.latitude && gps.longitude && (
-                    <div className="mt-3 flex items-start">
-                      <svg className="w-4 h-4 text-gray-400 mr-2 mt-0.5 flex-shrink-0 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                      <p className="text-sm text-gray-400">Fetching address...</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Status Grid */}
-                <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
-                  <div className="bg-gradient-to-br from-green-50 to-green-100 p-3 rounded-xl border border-green-200">
-                    <div className="flex items-center">
-                      <svg className="w-4 h-4 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                      </svg>
-                      <span className="text-sm font-medium text-gray-700">Speed</span>
-                    </div>
-                    <p className="text-lg sm:text-xl font-bold text-gray-900">{gps.speed || 0} km/h</p>
-                  </div>
-
-                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-3 rounded-xl border border-blue-200">
-                    <div className="flex items-center">
-                      <svg className="w-4 h-4 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                      </svg>
-                      <span className="text-sm font-medium text-gray-700">Direction</span>
-                    </div>
-                    <p className="text-lg sm:text-xl font-bold text-gray-900">{gps.direction || 0}°</p>
-                  </div>
-
-                  <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-3 rounded-xl border border-purple-200">
-                    <div className="flex items-center">
-                      <svg className="w-4 h-4 text-purple-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <span className="text-sm font-medium text-gray-700">Altitude</span>
-                    </div>
-                    <p className="text-lg sm:text-xl font-bold text-gray-900">{gps.altitude || 0}m</p>
-                  </div>
-
-                  <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 p-3 rounded-xl border border-yellow-200">
-                    <div className="flex items-center">
-                      <svg className="w-4 h-4 text-yellow-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                      </svg>
-                      <span className="text-sm font-medium text-gray-700">Signal</span>
-                    </div>
-                    <p className="text-lg sm:text-xl font-bold text-gray-900">{signalStrength}/31</p>
-                  </div>
-                </div>
-
-                {/* Additional Info */}
-                <div className="space-y-3 mb-6">
-                  <div className="flex justify-between items-center p-3 bg-gray-50 rounded-xl">
-                    <span className="text-sm font-medium text-gray-600">GNSS Satellites</span>
-                    <span className="text-lg font-bold text-gray-900">{gnssCount}</span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-gray-50 rounded-xl">
-                    <span className="text-sm font-medium text-gray-600">Mileage</span>
-                    <span className="text-lg font-bold text-gray-900">{mileage} km</span>
-                  </div>
-                </div>
-
-                {/* Status Indicators */}
-                <div className="flex gap-3 mb-6">
-                  <div className={`flex-1 text-center p-3 rounded-xl font-semibold ${
-                    status.moving 
-                      ? 'bg-gradient-to-r from-yellow-400 to-orange-400 text-white shadow-lg'
-                      : 'bg-gray-200 text-gray-700'
-                  }`}>
-                    {status.moving ? 'Moving' : 'Stopped'}
-                  </div>
-                  <div className={`flex-1 text-center p-3 rounded-xl font-semibold flex items-center justify-center ${
-                    status.gpsPositioned 
-                      ? 'bg-gradient-to-r from-green-400 to-green-500 text-white shadow-lg'
-                      : 'bg-gradient-to-r from-red-400 to-red-500 text-white shadow-lg'
-                  }`}>
-                    <div className={`w-2 h-2 rounded-full mr-2 ${status.gpsPositioned ? 'bg-white' : 'bg-white'}`}></div>
-                    {status.gpsPositioned ? 'GPS Good' : 'GPS Poor'}
-                  </div>
-                </div>
-
-                {/* Active Alarms */}
-                {Object.entries(alarms).filter(([key, value]) => value === true).length > 0 && (
-                  <div className="p-4 bg-gradient-to-r from-red-50 to-red-100 rounded-xl border border-red-200">
-                    <div className="flex items-center mb-2">
-                      <svg className="w-5 h-5 text-red-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.502 0L4.268 18.5c-.77.833.192 2.5 1.732 2.5z" />
-                      </svg>
-                      <span className="font-bold text-red-700">Active Alarms</span>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {Object.entries(alarms)
-                        .filter(([key, value]) => value === true)
-                        .slice(0, 3)
-                        .map(([key, value]) => (
-                          <span key={key} className="bg-red-500 text-white text-xs px-3 py-1 rounded-full font-semibold shadow">
-                            {key.replace(/([A-Z])/g, ' $1').trim()}
-                          </span>
-                        ))}
-                      {Object.entries(alarms).filter(([key, value]) => value === true).length > 3 && (
-                        <span className="bg-red-600 text-white text-xs px-3 py-1 rounded-full font-semibold shadow">
-                          +{Object.entries(alarms).filter(([key, value]) => value === true).length - 3} more
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Footer */}
-                <div className="mt-6 pt-4 border-t border-gray-200">
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-gray-500">Last Update</span>
-                    <span className="font-medium text-gray-900">
-                      {gps.time ? formatDate(gps.time) : 'Not available'}
-                    </span>
-                  </div>
-                </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-3">Live Tracking</h2>
+              <p className="text-gray-600 mb-6 leading-relaxed">
+                View real-time GPS data from all your devices. See current locations, speed, and status updates instantly.
+              </p>
+              <div className="flex items-center text-blue-600 font-semibold">
+                <span>View Live Data</span>
+                <svg className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
               </div>
             </div>
-          );
-        })}
+          </div>
+          <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-4">
+            <div className="flex justify-between items-center text-white">
+              <span className="text-sm font-medium">Active Devices</span>
+              <span className="text-xl font-bold">{gpsData.length}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* History Card */}
+        <div 
+          onClick={handleHistoryClick}
+          className="bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-200 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 cursor-pointer overflow-hidden group"
+        >
+          <div className="p-8">
+            <div className="flex flex-col items-center text-center">
+              <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg mb-6 group-hover:scale-110 transition-transform duration-300">
+                <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-3">History</h2>
+              <p className="text-gray-600 mb-6 leading-relaxed">
+                Browse historical GPS data and tracking records. View past locations, routes, and device history.
+              </p>
+              <div className="flex items-center text-purple-600 font-semibold">
+                <span>View History</span>
+                <svg className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+            </div>
+          </div>
+          <div className="bg-gradient-to-r from-purple-600 to-purple-700 p-4">
+            <div className="flex justify-between items-center text-white">
+              <span className="text-sm font-medium">Data Period</span>
+              <span className="text-xl font-bold">Last 7 Days</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
