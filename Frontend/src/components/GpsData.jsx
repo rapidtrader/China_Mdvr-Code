@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { apiUrl } from '../api';
+import { reverseGeocode } from '../utils/geocode';
 
 const GpsData = () => {
   const [gpsData, setGpsData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [token, setToken] = useState('');
+  const [addresses, setAddresses] = useState({});
 
   useEffect(() => {
     const storedToken = localStorage.getItem('authToken');
@@ -26,6 +28,34 @@ const GpsData = () => {
     // Cleanup interval on component unmount
     return () => clearInterval(interval);
   }, []);
+
+  // Fetch addresses for GPS coordinates
+  useEffect(() => {
+    const fetchAddresses = async () => {
+      const newAddresses = {};
+      
+      for (const device of gpsData) {
+        const gps = device.gps || {};
+        if (gps.latitude && gps.longitude && !addresses[device.deviceId]) {
+          try {
+            const address = await reverseGeocode(gps.latitude, gps.longitude);
+            newAddresses[device.deviceId] = address;
+          } catch (error) {
+            console.error(`Failed to fetch address for device ${device.deviceId}:`, error);
+            newAddresses[device.deviceId] = 'Address not available';
+          }
+        }
+      }
+      
+      if (Object.keys(newAddresses).length > 0) {
+        setAddresses(prev => ({ ...prev, ...newAddresses }));
+      }
+    };
+
+    if (gpsData.length > 0) {
+      fetchAddresses();
+    }
+  }, [gpsData]);
 
   const fetchGpsData = async (authToken) => {
     try {
@@ -313,6 +343,22 @@ const GpsData = () => {
                   <p className="text-lg font-mono text-gray-900">
                     {(gps.latitude || 0).toFixed(6)}, {(gps.longitude || 0).toFixed(6)}
                   </p>
+                  {addresses[device.deviceId] && (
+                    <div className="mt-3 flex items-start">
+                      <svg className="w-4 h-4 text-gray-500 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      </svg>
+                      <p className="text-sm text-gray-600 leading-relaxed">{addresses[device.deviceId]}</p>
+                    </div>
+                  )}
+                  {!addresses[device.deviceId] && gps.latitude && gps.longitude && (
+                    <div className="mt-3 flex items-start">
+                      <svg className="w-4 h-4 text-gray-400 mr-2 mt-0.5 flex-shrink-0 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      <p className="text-sm text-gray-400">Fetching address...</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Status Grid */}

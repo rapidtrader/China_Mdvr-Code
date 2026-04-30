@@ -91,11 +91,15 @@ const DeviceStatus = () => {
   };
 
   const getStateColor = (state) => {
-    return state === 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+    if (state === 1) return 'bg-green-100 text-green-800'; // Online
+    if (state === 0) return 'bg-red-100 text-red-800';   // Offline
+    return 'bg-yellow-100 text-yellow-800';              // Low power (state = 2)
   };
 
   const getStateText = (state) => {
-    return state === 0 ? 'Online' : 'Offline';
+    if (state === 1) return 'Online';    // Online
+    if (state === 0) return 'Offline';   // Offline
+    return 'Low Power';                  // Low power (state = 2)
   };
 
   const getAccStateColor = (accState) => {
@@ -189,7 +193,7 @@ const DeviceStatus = () => {
                 <dl>
                   <dt className="text-sm font-medium text-gray-500 truncate">Online</dt>
                   <dd className="text-lg font-medium text-gray-900">
-                    {statusData.filter(device => device.state === 0).length}
+                    {statusData.filter(device => device.state === 1).length}
                   </dd>
                 </dl>
               </div>
@@ -211,7 +215,7 @@ const DeviceStatus = () => {
                 <dl>
                   <dt className="text-sm font-medium text-gray-500 truncate">Offline</dt>
                   <dd className="text-lg font-medium text-gray-900">
-                    {statusData.filter(device => device.state === 1).length}
+                    {statusData.filter(device => device.state === 0).length}
                   </dd>
                 </dl>
               </div>
@@ -261,7 +265,10 @@ const DeviceStatus = () => {
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-gray-500">Device State:</span>
                   <div className="flex items-center space-x-2">
-                    <div className={`w-3 h-3 rounded-full ${status.state === 0 ? 'bg-green-400' : 'bg-red-400'}`}></div>
+                    <div className={`w-3 h-3 rounded-full ${
+                      status.state === 1 ? 'bg-green-400' : 
+                      status.state === 0 ? 'bg-red-400' : 'bg-yellow-400'
+                    }`}></div>
                     <span className={`px-2 py-1 rounded text-xs font-medium ${getStateColor(status.state)}`}>
                       {getStateText(status.state)}
                     </span>
@@ -283,7 +290,7 @@ const DeviceStatus = () => {
                     <div>
                       <span className="text-gray-500">Status:</span>
                       <p className="font-medium text-gray-900 mt-1">
-                        {status.state === 0 ? 'Connected' : 'Disconnected'}
+                        {status.state === 1 ? 'Connected' : 'Disconnected'}
                       </p>
                     </div>
                     <div>
@@ -298,8 +305,14 @@ const DeviceStatus = () => {
                 <div className="flex items-center justify-between text-xs text-gray-500 pt-2 border-t border-gray-100">
                   <span>Last updated: {new Date().toLocaleTimeString()}</span>
                   <div className="flex items-center">
-                    <div className={`w-2 h-2 rounded-full mr-1 ${status.state === 0 ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}></div>
-                    <span>{status.state === 0 ? 'Live' : 'Offline'}</span>
+                    <div className={`w-2 h-2 rounded-full mr-1 ${
+                      status.state === 1 ? 'bg-green-400 animate-pulse' : 
+                      status.state === 0 ? 'bg-red-400' : 'bg-yellow-400'
+                    }`}></div>
+                    <span>{
+                      status.state === 1 ? 'Live' : 
+                      status.state === 0 ? 'Offline' : 'Low Power'
+                    }</span>
                   </div>
                 </div>
               </div>
