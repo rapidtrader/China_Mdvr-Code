@@ -155,30 +155,31 @@ const GpsData = () => {
   }
 
   return (
-    <div className="min-h-screen bg-white p-8">
+    <div className="min-h-screen bg-white p-4 sm:p-6 lg:p-8">
       {/* Header Section */}
-      <div className="mb-8">
-        <div className="flex justify-between items-center mb-2">
+      <div className="mb-6 sm:mb-8">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-2 space-y-4 sm:space-y-0">
           <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
               GPS Tracking Dashboard
             </h1>
-            <p className="text-gray-600 mt-2 text-lg">Real-time location monitoring and vehicle tracking</p>
+            <p className="text-gray-600 mt-2 text-sm sm:text-base lg:text-lg">Real-time location monitoring and vehicle tracking</p>
           </div>
           <button
             onClick={handleRefresh}
-            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 px-6 rounded-xl flex items-center shadow-lg transform transition-all duration-200 hover:scale-105"
+            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-2 sm:py-3 px-4 sm:px-6 rounded-xl flex items-center shadow-lg transform transition-all duration-200 hover:scale-105 text-sm sm:text-base"
           >
-            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            Refresh Data
+            <span className="hidden sm:inline">Refresh Data</span>
+            <span className="sm:hidden">Refresh</span>
           </button>
         </div>
       </div>
 
       {/* GPS Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
         <div className="bg-gradient-to-br from-white to-blue-50 border border-blue-100 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
           <div className="p-6">
             <div className="flex items-center">
@@ -292,7 +293,7 @@ const GpsData = () => {
       </div>
 
       {/* GPS Data Cards - Modern Design */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         {gpsData.map((device) => {
           const gps = device.gps || {};
           const alarms = gps.alarmFlags || {};
@@ -312,15 +313,15 @@ const GpsData = () => {
           }
 
           return (
-            <div key={device.deviceId} className="bg-gradient-to-br from-white via-white to-blue-50 border border-blue-100 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 overflow-hidden">
+            <div key={device.deviceId} className="bg-gradient-to-br from-white via-white to-blue-50 border border-blue-100 rounded-xl sm:rounded-2xl shadow-lg sm:shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 overflow-hidden">
               {/* Card Header */}
-              <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-4">
-                <div className="flex items-center justify-between">
+              <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-3 sm:p-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
                   <div className="flex-1">
-                    <h3 className="text-xl font-bold text-white">{device.deviceId}</h3>
-                    <p className="text-blue-100 text-sm">GPS Tracking Device</p>
+                    <h3 className="text-lg sm:text-xl font-bold text-white truncate">{device.deviceId}</h3>
+                    <p className="text-blue-100 text-xs sm:text-sm">GPS Tracking Device</p>
                   </div>
-                  <div className={`px-3 py-1 rounded-full text-sm font-bold ${
+                  <div className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-bold ${
                     status.acc 
                       ? 'bg-green-500 text-white shadow-lg' 
                       : 'bg-gray-500 text-white shadow-lg'
@@ -331,7 +332,7 @@ const GpsData = () => {
               </div>
 
               {/* Card Body */}
-              <div className="p-6">
+              <div className="p-4 sm:p-6">
                 {/* Location Info */}
                 <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-200">
                   <div className="flex items-center mb-2">
@@ -340,7 +341,7 @@ const GpsData = () => {
                     </svg>
                     <span className="font-semibold text-gray-700">Coordinates</span>
                   </div>
-                  <p className="text-lg font-mono text-gray-900">
+                  <p className="text-sm sm:text-lg font-mono text-gray-900 break-all">
                     {(gps.latitude || 0).toFixed(6)}, {(gps.longitude || 0).toFixed(6)}
                   </p>
                   {addresses[device.deviceId] && (
@@ -362,7 +363,7 @@ const GpsData = () => {
                 </div>
 
                 {/* Status Grid */}
-                <div className="grid grid-cols-2 gap-4 mb-6">
+                <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
                   <div className="bg-gradient-to-br from-green-50 to-green-100 p-3 rounded-xl border border-green-200">
                     <div className="flex items-center">
                       <svg className="w-4 h-4 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -370,7 +371,7 @@ const GpsData = () => {
                       </svg>
                       <span className="text-sm font-medium text-gray-700">Speed</span>
                     </div>
-                    <p className="text-xl font-bold text-gray-900">{gps.speed || 0} km/h</p>
+                    <p className="text-lg sm:text-xl font-bold text-gray-900">{gps.speed || 0} km/h</p>
                   </div>
 
                   <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-3 rounded-xl border border-blue-200">
@@ -380,7 +381,7 @@ const GpsData = () => {
                       </svg>
                       <span className="text-sm font-medium text-gray-700">Direction</span>
                     </div>
-                    <p className="text-xl font-bold text-gray-900">{gps.direction || 0}°</p>
+                    <p className="text-lg sm:text-xl font-bold text-gray-900">{gps.direction || 0}°</p>
                   </div>
 
                   <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-3 rounded-xl border border-purple-200">
@@ -390,7 +391,7 @@ const GpsData = () => {
                       </svg>
                       <span className="text-sm font-medium text-gray-700">Altitude</span>
                     </div>
-                    <p className="text-xl font-bold text-gray-900">{gps.altitude || 0}m</p>
+                    <p className="text-lg sm:text-xl font-bold text-gray-900">{gps.altitude || 0}m</p>
                   </div>
 
                   <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 p-3 rounded-xl border border-yellow-200">
@@ -400,7 +401,7 @@ const GpsData = () => {
                       </svg>
                       <span className="text-sm font-medium text-gray-700">Signal</span>
                     </div>
-                    <p className="text-xl font-bold text-gray-900">{signalStrength}/31</p>
+                    <p className="text-lg sm:text-xl font-bold text-gray-900">{signalStrength}/31</p>
                   </div>
                 </div>
 

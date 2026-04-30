@@ -95,20 +95,21 @@ const Dashboard = () => {
       {/* Header */}
       <div className="bg-white shadow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center py-4 sm:py-6 space-y-4 sm:space-y-0">
             <div>
-              <h1 className="text-2xl font-bold text-black">MDVR Device Dashboard</h1>
-              <p className="text-black mt-1">Manage and monitor your devices</p>
+              <h1 className="text-xl sm:text-2xl font-bold text-black">MDVR Device Dashboard</h1>
+              <p className="text-black mt-1 text-sm sm:text-base">Manage and monitor your devices</p>
             </div>
             <div className="flex space-x-3">
               <button
                 onClick={handleRefresh}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded flex items-center"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded flex items-center text-sm sm:text-base"
               >
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                Refresh
+                <span className="hidden sm:inline">Refresh</span>
+                <span className="sm:hidden">Reload</span>
               </button>
             </div>
           </div>
@@ -118,7 +119,7 @@ const Dashboard = () => {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
           <div className="bg-white overflow-hidden shadow rounded-lg">
             <div className="p-5">
               <div className="flex items-center">
@@ -196,7 +197,7 @@ const Dashboard = () => {
               <p className="mt-1 text-sm text-gray-500">No devices are currently available.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               {devices.map((device) => (
                 <DeviceCard key={device.deviceId} device={device} />
               ))}

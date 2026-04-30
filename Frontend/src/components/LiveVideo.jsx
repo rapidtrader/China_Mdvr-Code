@@ -434,15 +434,15 @@ const LiveVideo = () => {
   }
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
+    <div className="p-4 sm:p-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6 space-y-4 sm:space-y-0">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Live Video Preview</h1>
-          <p className="text-gray-600 mt-1">Real-time video streaming from MDVR devices</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Live Video Preview</h1>
+          <p className="text-gray-600 mt-1 text-sm sm:text-base">Real-time video streaming from MDVR devices</p>
         </div>
         <button
           onClick={handleRefresh}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center shadow transition-colors duration-200"
+          className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center shadow transition-colors duration-200 text-sm sm:text-base"
         >
           <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -458,8 +458,8 @@ const LiveVideo = () => {
       )}
 
       {/* Controls */}
-      <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="bg-white rounded-lg shadow-md p-4 mb-4 sm:mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Select Device</label>
             <select
@@ -502,7 +502,7 @@ const LiveVideo = () => {
       </div>
 
       {/* Video Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         {videoData.map((video, index) => (
           <div key={`${video.deviceId}_${video.channel}`} className="bg-white rounded-lg shadow-lg overflow-hidden">
             <div className="bg-gray-900 aspect-video relative">
@@ -523,9 +523,9 @@ const LiveVideo = () => {
                 </div>
               )}
             </div>
-            <div className="p-4">
-              <div className="flex justify-between items-center mb-2">
-                <h3 className="text-lg font-semibold text-gray-900">Channel {video.channel}</h3>
+            <div className="p-3 sm:p-4">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-2 space-y-2 sm:space-y-0">
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900">Channel {video.channel}</h3>
                 <div className={`px-2 py-1 rounded-full text-xs font-medium ${
                   video.errCode === 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                 }`}>
@@ -545,7 +545,7 @@ const LiveVideo = () => {
                 )}
                 <div className="flex justify-between">
                   <span>Stream URL:</span>
-                  <span className="text-xs text-blue-600 truncate max-w-[200px]" title={getPlayableUrl(video)}>
+                  <span className="text-xs text-blue-600 truncate max-w-[150px] sm:max-w-[200px]" title={getPlayableUrl(video)}>
                     {getPlayableUrl(video) ? getPlayableUrl(video) : 'N/A'}
                   </span>
                 </div>
