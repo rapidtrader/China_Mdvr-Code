@@ -15,6 +15,12 @@ const getVideoListFromResponse = (videoResult) => {
   return firstList || [];
 };
 
+const isWebSocketPlaybackUrl = (url) =>
+  typeof url === 'string' &&
+  (url.startsWith('ws://') ||
+    url.startsWith('wss://') ||
+    /\.live\.(mp4|flv)(\?|$)/i.test(url));
+
 const getPlayableCandidates = (video) => {
   const directCandidates = [
     video?.hlsUrl,
@@ -30,9 +36,13 @@ const getPlayableCandidates = (video) => {
 
   // Don't guess arbitrary HLS/FLV URLs from WebRTC SDP endpoints (often 404 and noisy logs).
   // Vendor demo resolves browser playback using specific playFormat responses.
-  const normalized = directCandidates.map((url) =>
-    url.startsWith('ws://') ? `http://${url.slice('ws://'.length)}` : url
-  );
+  // For HTTP <video src>, map ws:// → http://. Keep wss:// as-is (handled by flv.js WebSocket path).
+  const normalized = directCandidates.map((url) => {
+    if (url.startsWith('ws://')) {
+      return `http://${url.slice('ws://'.length)}`;
+    }
+    return url;
+  });
 
   // Prefer stable order: explicit HLS/FLV URLs first when present.
   const webrtcUrls = normalized.filter((u) => u.toLowerCase().includes('/index/api/webrtc'));
@@ -47,6 +57,12 @@ const isWebRtcOnlyUrl = (url) => typeof url === 'string' && url.toLowerCase().in
 const startWebRtcPlayback = async ({ videoEl, webrtcUrl, onConnectionState }) => {
   if (!videoEl) throw new Error('Missing video element');
   if (!webrtcUrl) throw new Error('Missing webrtcUrl');
+
+  const authToken =
+    typeof localStorage !== 'undefined' ? localStorage.getItem('authToken') : null;
+  if (!authToken) {
+    throw new Error('No authentication token');
+  }
 
   const pc = new RTCPeerConnection();
   const abortController = new AbortController();
@@ -70,25 +86,46 @@ const startWebRtcPlayback = async ({ videoEl, webrtcUrl, onConnectionState }) =>
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
 
-  const response = await fetch(webrtcUrl, {
+  const proxyResponse = await fetch(apiUrl('/api/media/webrtcSdp'), {
     method: 'POST',
     headers: {
-      'Content-Type': 'text/plain;charset=utf-8'
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${authToken}`
     },
-    body: offer.sdp,
+    body: JSON.stringify({ sdpUrl: webrtcUrl, sdp: offer.sdp }),
     signal: abortController.signal
   });
 
-  if (!response.ok) {
-    throw new Error(`WebRTC SDP exchange failed: HTTP ${response.status}`);
+  const proxyPayload = await proxyResponse.json().catch(() => ({}));
+
+  if (!proxyResponse.ok || proxyPayload.success === false) {
+    const parts = [
+      proxyPayload.message,
+      proxyPayload.errorCode && `code=${proxyPayload.errorCode}`,
+      proxyPayload.error && proxyPayload.error !== proxyPayload.message ? proxyPayload.error : null,
+      proxyPayload.upstreamStatus != null ? `upstream HTTP ${proxyPayload.upstreamStatus}` : null,
+      proxyPayload.data != null && typeof proxyPayload.data === 'object'
+        ? JSON.stringify(proxyPayload.data)
+        : proxyPayload.data != null
+          ? String(proxyPayload.data)
+          : null
+    ].filter(Boolean);
+    throw new Error(
+      parts.length > 0
+        ? parts.join(' — ')
+        : `WebRTC SDP proxy failed: HTTP ${proxyResponse.status}`
+    );
   }
 
-  const data = await response.json();
-  if (data?.code !== 0 || !data?.sdp) {
-    throw new Error(data?.msg || data?.message || 'WebRTC SDP exchange failed');
+  if (proxyPayload.code !== 0 || !proxyPayload.sdp) {
+    const detail =
+      proxyPayload.msg ||
+      proxyPayload.message ||
+      (proxyPayload.data != null ? JSON.stringify(proxyPayload.data) : '');
+    throw new Error(detail || 'WebRTC SDP exchange failed');
   }
 
-  await pc.setRemoteDescription({ type: 'answer', sdp: data.sdp });
+  await pc.setRemoteDescription({ type: 'answer', sdp: proxyPayload.sdp });
 
   return {
     close: () => {
@@ -149,8 +186,9 @@ const StreamPlayer = ({ video, uniqueKey }) => {
 
     const lowerUrl = playUrl.toLowerCase();
     const isHlsStream = lowerUrl.includes('.m3u8');
-    const isFlvStream = lowerUrl.includes('.flv');
+    const isFlvStream = lowerUrl.includes('.flv') && flvjs.isSupported();
     const isWebRtcStream = lowerUrl.includes('/index/api/webrtc');
+    const isWsMp4Like = isWebSocketPlaybackUrl(playUrl) && flvjs.isSupported();
 
     if (isWebRtcStream) {
       startWebRtcPlayback({
@@ -167,7 +205,7 @@ const StreamPlayer = ({ video, uniqueKey }) => {
           console.error('WebRTC playback error:', { url: playUrl, error: e?.message || e });
           tryNextCandidate();
         });
-    } else if (isFlvStream && flvjs.isSupported()) {
+    } else if (isWsMp4Like || isFlvStream) {
       const flvPlayer = flvjs.createPlayer(
         {
           type: 'flv',
@@ -323,8 +361,8 @@ const LiveVideo = () => {
       setLoading(true);
       setError('');
 
-      // Vendor demo uses playFormat 1 (standard HTTP ws-mp4) and 2 (webrtc). Docs also mention 4 (hls).
-      const playFormatCandidates = [2, 1, 4];
+      // Try WebRTC first, then HLS (often https), then WS-MP4/WebSocket URL last (needs flv.js / not <video src>)
+      const playFormatCandidates = [2, 4, 1];
       let selectedVideoResult = null;
       let selectedVideoList = [];
 
@@ -357,12 +395,7 @@ const LiveVideo = () => {
 
         selectedVideoResult = videoResult;
         selectedVideoList = videoList;
-
-        // Prefer non-WebRTC media URLs for browser playback.
-        const hasDirectMediaUrl = videoList.some((item) => !isWebRtcOnlyUrl(getPlayableUrl(item)));
-        if (hasDirectMediaUrl) {
-          break;
-        }
+        break;
       }
 
       if (selectedVideoResult) {

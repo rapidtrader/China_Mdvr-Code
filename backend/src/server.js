@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
+const https = require('https');
 const { testConnection, initializeDatabase, closeDatabase } = require('./mongodb');
 const User = require('./models/User');
 const { saveDeviceData, saveGpsData, saveDeviceStatusData, getGpsData, getAllGpsHistoryFromDb, getDeviceData, getDeviceStatusData, saveUserLogin, getUserByUsername, getAllUsers } = require('./services/dataService');
@@ -8,6 +9,89 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Vendor HTTPS media API base (Nov 2025+ previews often exposed on :9367)
+const PREVIEW_VIDEO_URL =
+  process.env.PREVIEW_VIDEO_URL ||
+  'https://www.chinamdvr.com:9367/api/v1/media/previewVideo';
+
+// Optional: vendor media HTTPS (e.g. :9359) may ship an expired/invalid cert.
+// When set to '1', Node will not verify upstream TLS for WebRTC SDP proxy only.
+const WEBRTC_TLS_INSECURE = process.env.WEBRTC_TLS_INSECURE === '1';
+/** Used when WEBRTC_TLS_INSECURE=1, or as a single retry after a TLS verification failure on allowlisted upstreams. */
+const webrtcHttpsInsecureAgent = new https.Agent({ rejectUnauthorized: false });
+const webrtcHttpsAgentStrict = WEBRTC_TLS_INSECURE ? webrtcHttpsInsecureAgent : undefined;
+
+const isAxiosTlsHandshakeError = (err) => {
+  const code = err && typeof err.code === 'string' ? err.code : '';
+  const msg = err && typeof err.message === 'string' ? err.message : '';
+  if (
+    code === 'CERT_HAS_EXPIRED' ||
+    code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE' ||
+    code === 'DEPTH_ZERO_SELF_SIGNED_CERT' ||
+    code === 'SELF_SIGNED_CERT_IN_CHAIN' ||
+    code === 'ERR_TLS_CERT_ALTNAME_INVALID'
+  ) {
+    return true;
+  }
+  return /certificate|ssl|tls|cert has expired|unable to verify/i.test(msg);
+};
+
+const postWebRtcSdpToVendor = async (sdpUrl, sdp, token) => {
+  const baseConfig = {
+    headers: {
+      'Content-Type': 'text/plain;charset=utf-8',
+      'X-Token': token
+    },
+    timeout: 15000,
+    validateStatus: () => true
+  };
+
+  const isHttps = sdpUrl.startsWith('https://');
+  const firstAgent = isHttps ? webrtcHttpsAgentStrict : undefined;
+
+  try {
+    return await axios.post(sdpUrl, sdp, {
+      ...baseConfig,
+      ...(firstAgent ? { httpsAgent: firstAgent } : {})
+    });
+  } catch (err) {
+    if (
+      isHttps &&
+      !WEBRTC_TLS_INSECURE &&
+      isAxiosTlsHandshakeError(err)
+    ) {
+      console.warn(
+        'WebRTC SDP upstream TLS verification failed; retrying once with rejectUnauthorized=false (allowlisted host only)'
+      );
+      return axios.post(sdpUrl, sdp, {
+        ...baseConfig,
+        httpsAgent: webrtcHttpsInsecureAgent
+      });
+    }
+    throw err;
+  }
+};
+
+const assertAllowedWebRtcSdpUrl = (rawUrl) => {
+  let parsed;
+  try {
+    parsed = new URL(rawUrl);
+  } catch (_e) {
+    return { ok: false, message: 'Invalid sdpUrl' };
+  }
+
+  const host = parsed.hostname.toLowerCase();
+  const path = parsed.pathname.toLowerCase();
+
+  if (!host.endsWith('chinamdvr.com')) {
+    return { ok: false, message: 'sdpUrl host not allowed' };
+  }
+  if (!path.includes('/index/api/webrtc')) {
+    return { ok: false, message: 'sdpUrl path not allowed' };
+  }
+  return { ok: true, parsed };
+};
 
 // Middleware
 app.use(cors({
@@ -607,6 +691,61 @@ app.post('/api/device/states', async (req, res) => {
   }
 });
 
+// WebRTC SDP exchange proxy (ZLMediaKit style): avoids browser TLS issues on vendor :9359 etc.
+app.post('/api/media/webrtcSdp', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    const { sdpUrl, sdp } = req.body || {};
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: 'Token is required'
+      });
+    }
+
+    if (!sdpUrl || typeof sdp !== 'string' || sdp.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'sdpUrl and sdp are required'
+      });
+    }
+
+    const allow = assertAllowedWebRtcSdpUrl(sdpUrl);
+    if (!allow.ok) {
+      return res.status(400).json({
+        success: false,
+        message: allow.message || 'Invalid sdpUrl'
+      });
+    }
+
+    const response = await postWebRtcSdpToVendor(sdpUrl, sdp, token);
+
+    if (response.status < 200 || response.status >= 300) {
+      return res.status(200).json({
+        success: false,
+        message: 'Upstream WebRTC SDP failed',
+        upstreamStatus: response.status,
+        data: response.data
+      });
+    }
+
+    // Upstream normally returns JSON: { code, sdp, ... }
+    return res.json({
+      success: true,
+      ...response.data
+    });
+  } catch (error) {
+    console.error('WebRTC SDP proxy error:', error.message, error.code || '');
+    return res.status(200).json({
+      success: false,
+      message: 'WebRTC SDP proxy failed',
+      error: error.message,
+      errorCode: error.code
+    });
+  }
+});
+
 // Video preview endpoint
 app.post('/api/media/previewVideo', async (req, res) => {
   try {
@@ -633,9 +772,9 @@ app.post('/api/media/previewVideo', async (req, res) => {
 
     // Make request to external video preview API
     // Important: don't throw on non-2xx so the frontend can retry other playFormat values.
-    console.log('Making request to video preview API...');
+    console.log('Making request to video preview API:', PREVIEW_VIDEO_URL);
     const response = await axios.post(
-      'http://www.chinamdvr.com:9337/api/v1/media/previewVideo',
+      PREVIEW_VIDEO_URL,
       { deviceId, channels, dataType, streamType, playFormat },
       {
         headers: {
@@ -661,18 +800,7 @@ app.post('/api/media/previewVideo', async (req, res) => {
 
     return res.json({
       success: true,
-      data: response.data,
-      replacedUrls: response.data?.data?.list?.map(video => ({
-        ...video,
-        videoUrl: video?.videoUrl?.replace(
-  /http:\/\/(www\.)?chinamdvr\.com:9330/,
-  "https://ops.dynacleanindustries.com/video"
-),
-hlsUrl: video?.hlsUrl?.replace(
-  /http:\/\/(www\.)?chinamdvr\.com:9330/,
-  "https://ops.dynacleanindustries.com/video"
-)
-      }))
+      data: response.data
     });
 
   } catch (error) {
