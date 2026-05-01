@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { apiUrl } from '../api';
 import { reverseGeocode } from '../utils/geocode';
+import GpsTrackingTrail from './GpsTrackingTrail';
 
 const GpsData = () => {
   const [gpsData, setGpsData] = useState([]);
@@ -8,10 +9,11 @@ const GpsData = () => {
   const [error, setError] = useState('');
   const [token, setToken] = useState('');
   const [addresses, setAddresses] = useState({});
-  const [viewMode, setViewMode] = useState('cards'); // 'cards', 'live', 'history'
+  const [viewMode, setViewMode] = useState('cards'); // 'cards', 'live', 'history', 'trail'
   const [historyData, setHistoryData] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState('');
+  const [selectedDeviceForTrail, setSelectedDeviceForTrail] = useState('');
 
   useEffect(() => {
     const storedToken = localStorage.getItem('authToken');
@@ -193,6 +195,11 @@ const GpsData = () => {
 
   const handleBackToCards = () => {
     setViewMode('cards');
+  };
+
+  const handleTrailClick = (deviceId) => {
+    setSelectedDeviceForTrail(deviceId);
+    setViewMode('trail');
   };
 
   const formatDate = (timestamp) => {
@@ -377,12 +384,21 @@ const GpsData = () => {
 
                   {/* Footer */}
                   <div className="mt-6 pt-4 border-t border-gray-200">
-                    <div className="flex justify-between items-center text-sm">
+                    <div className="flex justify-between items-center text-sm mb-3">
                       <span className="text-gray-500">Last Update</span>
                       <span className="font-medium text-gray-900">
                         {gps.time ? formatDate(gps.time) : 'Not available'}
                       </span>
                     </div>
+                    <button
+                      onClick={() => handleTrailClick(device.deviceId)}
+                      className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center shadow transition-all duration-200 hover:scale-105"
+                    >
+                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0121 18.382V7.618a1 1 0 01-.553-.894L15 7m0 13V7" />
+                      </svg>
+                      View Tracking Trail
+                    </button>
                   </div>
                 </div>
               </div>
@@ -498,6 +514,17 @@ const GpsData = () => {
           </div>
         )}
       </div>
+    );
+  }
+
+  // Render Trail View
+  if (viewMode === 'trail') {
+    return (
+      <GpsTrackingTrail
+        deviceId={selectedDeviceForTrail}
+        token={token}
+        onBack={handleBackToCards}
+      />
     );
   }
 

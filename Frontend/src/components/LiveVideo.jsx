@@ -308,15 +308,53 @@ const LiveVideo = () => {
     
     setToken(storedToken);
     fetchDeviceData(storedToken);
+  }, []);
 
-    // Set up auto-refresh interval (every 1 minute)
+  // Set up auto-refresh interval with proper dependencies
+  useEffect(() => {
+    if (!selectedDevice || !token) return;
+
     const interval = setInterval(() => {
-      fetchDeviceData(storedToken);
+      fetchVideoPreview(token, selectedDevice, selectedChannel);
     }, 60000);
 
-    // Cleanup interval on component unmount
     return () => clearInterval(interval);
-  }, []);
+  }, [selectedDevice, token, selectedChannel]);
+
+  // Set up GPS data auto-refresh every 15 seconds
+  useEffect(() => {
+    if (!token || deviceIds.length === 0) return;
+
+    const fetchGpsData = async () => {
+      try {
+        const response = await fetch(apiUrl('/api/gps/latest'), {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ deviceIds })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          console.log('GPS data auto-fetched and saved:', result.data);
+        } else {
+          console.error('GPS data auto-fetch failed:', result.message);
+        }
+      } catch (error) {
+        console.error('GPS data auto-fetch error:', error);
+      }
+    };
+
+    // Initial GPS fetch
+    fetchGpsData();
+
+    // Set up 15-second interval for GPS data
+    const gpsInterval = setInterval(fetchGpsData, 15000);
+
+    return () => clearInterval(gpsInterval);
+  }, [token, deviceIds]);
 
   const fetchDeviceData = async (authToken) => {
     try {
@@ -346,7 +384,7 @@ const LiveVideo = () => {
       
       if (deviceIds.length > 0) {
         setSelectedDevice(deviceIds[0]);
-        fetchVideoPreview(authToken, deviceIds[0]);
+        fetchVideoPreview(authToken, deviceIds[0], selectedChannel);
       }
     } catch (err) {
       setError('Network error. Please try again.');
@@ -402,10 +440,6 @@ const LiveVideo = () => {
         setVideoData(selectedVideoList);
         console.log('Real video preview data fetched:', selectedVideoResult.data);
 
-        const onlyWebRtc = selectedVideoList.every((item) => isWebRtcOnlyUrl(getPlayableUrl(item)));
-        if (onlyWebRtc) {
-          setWarning('Server is returning WebRTC-only URL. HLS/FLV stream is not available on this channel.');
-        }
       } else {
         setError('Failed to fetch video preview');
       }
@@ -577,10 +611,10 @@ const LiveVideo = () => {
                   </div>
                 )}
                 <div className="flex justify-between">
-                  <span>Stream URL:</span>
+                  {/* <span>Stream URL:</span>
                   <span className="text-xs text-blue-600 truncate max-w-[150px] sm:max-w-[200px]" title={getPlayableUrl(video)}>
                     {getPlayableUrl(video) ? getPlayableUrl(video) : 'N/A'}
-                  </span>
+                  </span> */}
                 </div>
               </div>
             </div>
